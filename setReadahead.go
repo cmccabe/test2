@@ -22,8 +22,11 @@ func setOsReadahead(readahead int64) {
 		"/dev/sdl",
 		"/dev/fioa" }
 	for i := 0; i < len(BLOCK_DEVS); i++ {
-		err := exec.Command("blockdev", "--setra",
-			strconv.FormatInt(readahead, 10), BLOCK_DEVS[i]).Run()
+		cmd := exec.Command("blockdev", "--setra",
+			strconv.FormatInt(readahead, 10), BLOCK_DEVS[i])
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
 		if err != nil {
 			panic(err.Error())
 		}
