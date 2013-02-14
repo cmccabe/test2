@@ -152,6 +152,43 @@ func (c *Config) toString() string {
 			path.Base(c.hadoop), c.readahead, c.confBranch)
 }
 
+type TestRun struct {
+	*Config
+	directory string
+}
+
+func (testRun *TestRun) init(c *Config, n *Nonce) error {
+	testRun.Config = c
+	testRun.directory = n.directory + "/" + c.toString()
+	err := os.Mkdir(testRun.directory, 0755)
+	if err != nil {
+		fmt.Println("** failed to create test run directory ", testRun.directory)
+		return err
+	}
+	return nil
+}
+
+func (testRun *TestRun) start(args []string) error {
+	curArgs := append(args, testRun.toString())
+	curArgs = append(curArgs, testRun.directory)
+	cmd := exec.Command(curArgs[0])
+	cmd.Args = curArgs
+	stdoutFile, err := os.Create(testRun.directory + "/stdout"); if err != nil {
+		panic(err)
+	}
+	var stderrFile *os.File
+	stderrFile, err = os.Create(testRun.directory + "/stderr"); if err != nil {
+		panic(err)
+	}
+	// TODO: use bufio here?
+	cmd.Stdout = stdoutFile
+	defer stdoutFile.Close()
+	cmd.Stderr = stderrFile
+	defer stderrFile.Close()
+	err = cmd.Run()
+	return err
+}
+
 /////////////////// Main /////////////////// 
 var ignoreFailure = flag.Bool("ignoreFailure", false, "whether to ignore the failure of tests and keep going")
 
@@ -179,10 +216,9 @@ func (n *Nonce) init(dir string) error {
 }
 
 func main() {
-	nonce := Nonce{}
-
 	flag.Parse()
 	args := flag.Args()
+	nonce := Nonce{}
 	err := nonce.init(*nonceDir); if err != nil {
 		panic(err)
 	}
@@ -191,16 +227,11 @@ func main() {
 		os.Exit(1)
 	}
 	for i := 0; i < len(CONFIGS); i++ {
-		c := CONFIGS[i]
-		c.startCluster()
+		var testRun TestRun
+		testRun.init(&CONFIGS[i], &nonce)
+		//testRun.startCluster()
 		fmt.Println("** running test...")
-		curArgs := append(args, c.toString())
-		curArgs = append(curArgs, nonce.directory)
-		cmd := exec.Command(curArgs[0])
-		cmd.Args = curArgs
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
+		testRun.start(args)
 		if err != nil {
 			fmt.Println("** test failed: " + err.Error())
 			if (!*ignoreFailure) {
