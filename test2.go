@@ -1,19 +1,21 @@
 package main
 
-import "exec"
+import "flag"
 import "fmt"
 import "os"
+import "os/exec"
+import "path"
+import "path/filepath"
 import "runtime"
 import "strconv"
-import "syscall"
 
 // Configuration directory
-const CONF_DIR = "/home/cmccabe/conf"
+const CONF_DIR = "/home/cmccabe/bench-conf"
 
 // Where current hadoop is installed
 const HADOOP_HOME_BASE = "/home/cmccabe/h"
 
-struct Config {
+type Config struct {
 	// Whether we should reformat the HDFS install prior to running this 
 	shouldReformat bool
 
@@ -21,118 +23,63 @@ struct Config {
 	hadoop string
 
 	// Readahead setting
-	readahead uint64
+	readahead int64
 
 	// Configuration branch to use
 	confBranch string
 }
 
-var CONFIGS := []Config{
+var CONFIGS = []Config{
 	Config{
 		shouldReformat:false, // true
 		hadoop:"/home/cmccabe/cdh4",
 		readahead:1048576,
-		confBranch:"f_c_L_1MBR"
+		confBranch:"f_c_L_1mRA",
 	},
 	Config{
 		shouldReformat:false,
 		hadoop:"/home/cmccabe/cdh4",
 		readahead:1048576,
-		confBranch:"f_C_L_1MBR"
+		confBranch:"f_C_L_1mRA",
 	},
 	Config{
 		shouldReformat:false,
 		hadoop:"/home/cmccabe/cdh4",
 		readahead:8388608,
-		confBranch:"f_c_L_8MBR"
+		confBranch:"f_c_L_8mRA",
 	},
 	Config{
 		shouldReformat:false,
 		hadoop:"/home/cmccabe/cdh4",
 		readahead:8388608,
-		confBranch:"f_C_L_8MBR"
+		confBranch:"f_C_L_8mRA",
 	},
 
 	Config{
 		shouldReformat:true,
 		hadoop:"/home/cmccabe/cdh3",
 		readahead:1048576,
-		confBranch:"f_c_L_1MBR"
+		confBranch:"f_c_L_1mRA",
 	},
 	Config{
 		shouldReformat:false,
 		hadoop:"/home/cmccabe/cdh3",
 		readahead:8388608,
-		confBranch:"f_c_L_8MBR"
+		confBranch:"f_c_L_8mRA",
 	},
 }
 
-/////////////////// Root permissions management functions /////////////////// 
-var saved_uid : int;
-
-func takeRoot() {
-	saved_uid = syscall.Getuid()
-	en := syscall.Setuid(0)
-	if en != 0 {
-		panic(fmt.Sprintf("setuid error:" , os.Errno(en)))
-	}
-	runtime.LockOSThread()
-}
-
-func releaseRoot() {
-	en := syscall.Setuid(saved_uid)
-	if en != 0 {
-		panic(fmt.Sprintf("setuid error:" , os.Errno(en)))
-	}
-	runtime.UnlockOSThread()
-}
-
-func usage(retval int) {
-	fmt.Printf("test2: performs HDFS tests.\n");
-	os.Exit(retval)
-}
-
-/////////////////// Page cache management functions /////////////////// 
-// Clear the page cache before our test. 
-func clearPageCache() {
-	takeRoot()
-	defer releaseRoot()
-	syscall.Sync()
-	fo, err := os.OpenFile("/proc/sys/vm/drop_caches", syscall.O_WRONLY, 0666)
-	if err != nil { panic(err) }
-	defer fo.Close()
-	if n2, err := fo.Write([]byte{ 0x33 }); err != nil {
+/////////////////// Execute local /////////////////// 
+func execLocal(params []string) {
+	_, filename, _, _ := runtime.Caller(1)
+	params[0] = path.Dir(filename) + "/" + params[0]
+	cmd := exec.Command(params[0])
+	cmd.Args = params
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Run()
+	if err != nil {
 		panic(err)
-	} else if n2 != 1 {
-		panic("error writing")
-	}
-}
-
-func setOsReadahead(readahead uint64) {
-	takeRoot()
-	defer releaseRoot()
-	readahead /= 4096;
-	BLOCK_DEVS = []string {
-		"/dev/sda",
-		"/dev/sdb",
-		"/dev/sdc",
-		"/dev/sdd",
-		"/dev/sde",
-		"/dev/sdf",
-		"/dev/sdg",
-		"/dev/sdh",
-		"/dev/sdi",
-		"/dev/sdj",
-		"/dev/sdk",
-		"/dev/sdl",
-		"/dev/fioa",
-	}
-	for (int i = 0; i < len(BLOCK_DEVS); i++) {
-		err := exec.Command("blockdev", "--setra",
-			strconv.Itoa(readahead), BLOCK_DEVS[i]).Run()
-		if err != nil {
-			panic(err)
-		}
 	}
 }
 
@@ -143,20 +90,26 @@ func checkoutConfig(branch string) {
 	if err != nil {
 		panic(err)
 	}
-	err = exec.Command("git", "checkout", branch).Run()
+	cmd := exec.Command("git", "checkout", branch)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
 	if err != nil {
 		panic(err)
 	}
 }
 
+func javaLives() bool {
+	err := exec.Command("ps", "-o", "pid", "-C", "java")
+	return err == nil
+}
+
 func shutdownJava() {
-	err := exec.Command("killall", "java").Run()
-	if err != nil {
-		panic(err)
-	}
-	err = exec.Command("killall", "-9", "java").Run()
-	if err != nil {
-		panic(err)
+	for killall := false; javaLives(); killall = true {
+		exec.Command("killall", "-q", "java")
+		if (killall) {
+			exec.Command("killall", "-9", "-q", "java").Run()
+		}
 	}
 }
 
@@ -165,28 +118,33 @@ func dfsStart() {
 	if err != nil {
 		panic(err)
 	}
-	start_dfs = "./sbin/start-dfs.sh"
-	_, err := os.Stat(start_dfs)
+	start_dfs := "./sbin/start-dfs.sh"
+	_, err = os.Stat(start_dfs)
 	if (err != nil) {
 		start_dfs = "./bin/start-dfs.sh"
 	}
-	err := exec.Command(start_dfs).Run()
+	err = exec.Command(start_dfs).Run()
 	if err != nil {
 		panic(err)
 	}
 }
 
 func (c *Config) startCluster() {
+	fmt.Println("** shutting down Java...")
 	shutdownJava()
+	fmt.Println("** re-arranging symlinks, checking out code, setting readahead...")
 	os.Remove(HADOOP_HOME_BASE)
 	err := os.Symlink(c.hadoop, HADOOP_HOME_BASE)
 	if err != nil {
 		panic(err)
 	}
-	setOsReadahead(c.readahead)
+	execLocal([]string { "setReadahead", strconv.FormatInt(c.readahead, 10) })
 	checkoutConfig(c.confBranch)
+	fmt.Println("** starting cluster for " + c.toString() + "...")
 	dfsStart()
-	fmt.Println("cluster started for " + c.toString())
+	fmt.Println("** cluster started for " + c.toString())
+	execLocal([]string { "dropCache" })
+	fmt.Println("** page cache dropped.")
 }
 
 func (c *Config) toString() string {
@@ -194,12 +152,62 @@ func (c *Config) toString() string {
 			path.Base(c.hadoop), c.readahead, c.confBranch)
 }
 
-/////////////////// Test Code /////////////////// 
-
 /////////////////// Main /////////////////// 
+var ignoreFailure = flag.Bool("ignoreFailure", false, "whether to ignore the failure of tests and keep going")
+
+var nonceDir = flag.String("nonce", "RANDOM", "the directory to put test outputs into.")
+
+type Nonce struct {
+	directory string
+}
+
+func (n *Nonce) init(dir string) error {
+	baseDir := ""
+	if (dir == "RANDOM") {
+		baseDir = strconv.Itoa(os.Getpid())
+	} else {
+		baseDir = dir
+	}
+	var err error
+	n.directory, err = filepath.Abs(baseDir)
+	err = os.Mkdir("./" + baseDir, 0755)
+	if err != nil {
+		fmt.Println("** failed to create nonce directory " + baseDir)
+		return err
+	}
+	return nil
+}
+
 func main() {
-	clearPageCache()
-	for (int i = 0; i < len(CONFIGS); i++) {
+	nonce := Nonce{}
+
+	flag.Parse()
+	args := flag.Args()
+	err := nonce.init(*nonceDir); if err != nil {
+		panic(err)
+	}
+	if (len(args) < 1) {
+		fmt.Println("you must give at least one test command to run (example: echo)")
+		os.Exit(1)
+	}
+	for i := 0; i < len(CONFIGS); i++ {
+		c := CONFIGS[i]
 		c.startCluster()
+		fmt.Println("** running test...")
+		curArgs := append(args, c.toString())
+		curArgs = append(curArgs, nonce.directory)
+		cmd := exec.Command(curArgs[0])
+		cmd.Args = curArgs
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		if err != nil {
+			fmt.Println("** test failed: " + err.Error())
+			if (!*ignoreFailure) {
+				panic(err)
+			}
+		} else {
+			fmt.Println("** test succeeded.")
+		}
 	}
 }
