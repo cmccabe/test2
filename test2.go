@@ -267,6 +267,8 @@ var skipClusterSetup = flag.Bool("skipClusterSetup", false, "whether to skip clu
 
 var nonceDir = flag.String("nonce", "RANDOM", "the directory to put test outputs into.")
 
+var startConfig = flag.String("startConfig", "", "skip all configurations up to this configuration.")
+
 type Nonce struct {
 	directory string
 }
@@ -288,6 +290,26 @@ func (n *Nonce) init(dir string) error {
 	return nil
 }
 
+func getStartConfigIdx(startConfig string) int {
+	if (startConfig == "") {
+		return 0
+	}
+	i := 0
+	for i = 0; i < len(CONFIGS); i++ {
+		if (CONFIGS[i].toString() == startConfig) {
+			return i;
+		}
+	}
+	fmt.Printf("There were no configurations matching %s\n", startConfig)
+	fmt.Printf("valid configurations are: ");
+	for j := 0; j < len(CONFIGS); j++ {
+		fmt.Printf("\n%s", CONFIGS[j].toString())
+	}
+	fmt.Printf("\n")
+	os.Exit(1)
+	return -1
+}
+
 func main() {
 	flag.Parse()
 	args := flag.Args()
@@ -299,7 +321,8 @@ func main() {
 		fmt.Println("you must give at least one test command to run (example: echo)")
 		os.Exit(1)
 	}
-	for i := 0; i < len(CONFIGS); i++ {
+
+	for i := getStartConfigIdx(*startConfig); i < len(CONFIGS); i++ {
 		var testRun TestRun
 		testRun.init(&CONFIGS[i], &nonce)
 		if (!*skipClusterSetup) {
