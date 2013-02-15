@@ -31,7 +31,7 @@ type Config struct {
 
 var CONFIGS = []Config{
 	Config{
-		shouldReformat:false, // true
+		shouldReformat:true,
 		hadoop:"/home/cmccabe/cdh4",
 		readahead:1048576,
 		confBranch:"f_c_L_1mRA",
@@ -54,7 +54,6 @@ var CONFIGS = []Config{
 		readahead:8388608,
 		confBranch:"f_C_L_8mRA",
 	},
-
 	Config{
 		shouldReformat:true,
 		hadoop:"/home/cmccabe/cdh3",
@@ -100,7 +99,7 @@ func checkoutConfig(branch string) {
 }
 
 func javaLives() bool {
-	err := exec.Command("ps", "-o", "pid", "-C", "java")
+	err := exec.Command("ps", "-o", "pid", "-C", "java").Run()
 	return err == nil
 }
 
@@ -129,6 +128,16 @@ func dfsStart() {
 	}
 }
 
+func formatHdfs() {
+	exec.Command("bash", "-c", "rm -rf /data/*/cmccabe/data*/*").Run()
+	exec.Command("bash", "-c", "rm -rf /data/*/cmccabe/name*/*").Run()
+	err := exec.Command("bash", "-c", "yes Y | " +
+		"/home/cmccabe/h/bin/hadoop namenode -format").Run()
+	if (err != nil) {
+		panic(err)
+	}
+}
+
 func (c *Config) startCluster() {
 	fmt.Println("** shutting down Java...")
 	shutdownJava()
@@ -141,6 +150,10 @@ func (c *Config) startCluster() {
 	execLocal([]string { "setReadahead", strconv.FormatInt(c.readahead, 10) })
 	checkoutConfig(c.confBranch)
 	fmt.Println("** starting cluster for " + c.toString() + "...")
+	if (c.shouldReformat) {
+		fmt.Println("** reformatting...")
+		formatHdfs()
+	}
 	dfsStart()
 	fmt.Println("** cluster started for " + c.toString())
 	execLocal([]string { "dropCache" })
@@ -168,7 +181,7 @@ func (testRun *TestRun) init(c *Config, n *Nonce) error {
 	return nil
 }
 
-func (testRun *TestRun) start(args []string) error {
+func (testRun *TestRun) run(args []string) error {
 	curArgs := append(args, testRun.toString())
 	curArgs = append(curArgs, testRun.directory)
 	cmd := exec.Command(curArgs[0])
@@ -191,6 +204,8 @@ func (testRun *TestRun) start(args []string) error {
 
 /////////////////// Main /////////////////// 
 var ignoreFailure = flag.Bool("ignoreFailure", false, "whether to ignore the failure of tests and keep going")
+
+var skipClusterSetup = flag.Bool("skipClusterSetup", false, "whether to skip cluster setup (useful only for trivial testing)")
 
 var nonceDir = flag.String("nonce", "RANDOM", "the directory to put test outputs into.")
 
@@ -229,9 +244,11 @@ func main() {
 	for i := 0; i < len(CONFIGS); i++ {
 		var testRun TestRun
 		testRun.init(&CONFIGS[i], &nonce)
-		//testRun.startCluster()
-		fmt.Println("** running test...")
-		testRun.start(args)
+		if (!*skipClusterSetup) {
+			testRun.startCluster()
+		}
+		fmt.Println("** running test " + args[0] + "...")
+		err = testRun.run(args)
 		if err != nil {
 			fmt.Println("** test failed: " + err.Error())
 			if (!*ignoreFailure) {
