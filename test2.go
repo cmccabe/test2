@@ -184,7 +184,8 @@ func waitForSafeModeOff() {
 		output, err := exec.Command("/home/cmccabe/h/bin/hadoop", "dfsadmin",
 			"-safemode", "get").Output()
 		if (err != nil) {
-			panic(err)
+			panic(fmt.Sprintf("waitForSafeModeOff: error: %s.  OUTPUT: %s\n",
+				err, output))
 		}
 		outputStr := string(output)
 		if (strings.Contains(outputStr, "OFF")) {
