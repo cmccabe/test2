@@ -8,6 +8,8 @@ import "path"
 import "path/filepath"
 import "runtime"
 import "strconv"
+import "strings"
+import "time"
 
 // Configuration directory
 const CONF_DIR = "/home/cmccabe/bench-conf"
@@ -138,6 +140,23 @@ func formatHdfs() {
 	}
 }
 
+func waitForSafeModeOff() {
+	const MAX_RETRIES = 1000
+	for i := 0; i < MAX_RETRIES; i++ {
+		output, err := exec.Command("/home/cmccabe/h/bin/hadoop", "dfsadmin",
+			"-safemode", "get").Output()
+		if (err != nil) {
+			panic(err)
+		}
+		outputStr := string(output)
+		if (strings.Contains(outputStr, "OFF")) {
+			return
+		}
+		d, _ := time.ParseDuration("30s")
+		time.Sleep(d)
+	}
+}
+
 func (c *Config) startCluster() {
 	fmt.Println("** shutting down Java...")
 	shutdownJava()
@@ -155,6 +174,7 @@ func (c *Config) startCluster() {
 		formatHdfs()
 	}
 	dfsStart()
+	waitForSafeModeOff()
 	fmt.Println("** cluster started for " + c.toString())
 	execLocal([]string { "dropCache" })
 	fmt.Println("** page cache dropped.")
