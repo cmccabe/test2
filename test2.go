@@ -32,6 +32,7 @@ type Config struct {
 }
 
 var CONFIGS = []Config{
+	// hard disk configs
 	Config{
 		shouldReformat:true,
 		hadoop:"/home/cmccabe/cdh4",
@@ -67,6 +68,43 @@ var CONFIGS = []Config{
 		hadoop:"/home/cmccabe/cdh3",
 		readahead:8388608,
 		confBranch:"f_c_L_8mRA",
+	},
+	// fusion I/O configs
+	Config{
+		shouldReformat:true,
+		hadoop:"/home/cmccabe/cdh4",
+		readahead:1048576,
+		confBranch:"F_c_L_1mRA",
+	},
+	Config{
+		shouldReformat:false,
+		hadoop:"/home/cmccabe/cdh4",
+		readahead:1048576,
+		confBranch:"F_C_L_1mRA",
+	},
+	Config{
+		shouldReformat:false,
+		hadoop:"/home/cmccabe/cdh4",
+		readahead:8388608,
+		confBranch:"F_c_L_8mRA",
+	},
+	Config{
+		shouldReformat:false,
+		hadoop:"/home/cmccabe/cdh4",
+		readahead:8388608,
+		confBranch:"F_C_L_8mRA",
+	},
+	Config{
+		shouldReformat:true,
+		hadoop:"/home/cmccabe/cdh3",
+		readahead:1048576,
+		confBranch:"F_c_L_1mRA",
+	},
+	Config{
+		shouldReformat:false,
+		hadoop:"/home/cmccabe/cdh3",
+		readahead:8388608,
+		confBranch:"F_c_L_8mRA",
 	},
 }
 
