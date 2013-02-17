@@ -182,7 +182,7 @@ func waitForSafeModeOff() {
 	const MAX_RETRIES = 1000
 	for i := 0; i < MAX_RETRIES; i++ {
 		output, err := exec.Command("/home/cmccabe/h/bin/hadoop", "dfsadmin",
-			"-safemode", "get").Output()
+			"-safemode", "get").CombinedOutput()
 		if (err != nil) {
 			panic(fmt.Sprintf("waitForSafeModeOff: error: %s.  OUTPUT: %s\n",
 				err, output))
