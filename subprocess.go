@@ -15,6 +15,7 @@ import (
 type Subprocess struct {
 	params []string
 	PrintableParams []string
+	PrintOutputOnSuccess bool
 	CombinedOutput string
 	Tries int
 	MaxTries int
@@ -29,6 +30,7 @@ func NewSubprocess(params []string, useRel bool, maxTries int) *Subprocess {
 	}
 	subp.params = params
 	subp.PrintableParams = params
+	subp.PrintOutputOnSuccess = true
 	subp.Tries = 0
 	subp.MaxTries = maxTries
 	subp.RetryTime, _ = time.ParseDuration("30s")
@@ -53,8 +55,10 @@ func (subp *Subprocess) Run() {
 		out, err = cmd.CombinedOutput()
 		subp.CombinedOutput = string(out)
 		if err == nil {
-			fmt.Printf("SUCCESS: '%v': CombinedOutput: '%v'\n",
-				subp.PrintableParams, subp.CombinedOutput)
+			if (subp.PrintOutputOnSuccess) {
+				fmt.Printf("SUCCESS: '%v': CombinedOutput: '%v'\n",
+					subp.PrintableParams, subp.CombinedOutput)
+			}
 			return
 		}
 		fmt.Printf("FAILED: '%v': CombinedOutput: '%v', err:'%v'\n",

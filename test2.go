@@ -147,7 +147,9 @@ func dfsStart() {
 	if (err != nil) {
 		start_dfs = "./bin/start-dfs.sh"
 	}
-	NewSubprocess([]string { start_dfs }, false, 30).Run()
+	startDfs := NewSubprocess([]string { start_dfs }, false, 30)
+	startDfs.PrintOutputOnSuccess = false
+	startDfs.Run()
 }
 
 func formatHdfs() {
@@ -155,8 +157,10 @@ func formatHdfs() {
 		"rm -rf /data/*/cmccabe/data*/*" }, false, 1).Run()
 	NewSubprocess([]string { "bash", "-c",
 		"rm -rf /data/*/cmccabe/name*/*" }, false, 1).Run()
-	NewSubprocess([]string { "bash", "-c", "yes Y | " +
-		"/home/cmccabe/h/bin/hadoop namenode -format" }, false, 100).Run()
+	fmt := NewSubprocess([]string { "bash", "-c", "yes Y | " +
+		"/home/cmccabe/h/bin/hadoop namenode -format" }, false, 100)
+	fmt.PrintOutputOnSuccess = false
+	fmt.Run()
 }
 
 func waitForSafeModeOff() {
@@ -166,6 +170,7 @@ func waitForSafeModeOff() {
 	}
 	subProc := NewSubprocess([]string { "./bin/hadoop", "dfsadmin",
 			"-safemode", "get" }, false, 100)
+	subProc.PrintOutputOnSuccess = false
 	for ;; {
 		subProc.Run()
 		if (strings.Contains(subProc.CombinedOutput, "OFF")) {
