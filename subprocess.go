@@ -14,6 +14,7 @@ import (
 
 type Subprocess struct {
 	params []string
+	PrintableParams []string
 	CombinedOutput string
 	Tries int
 	MaxTries int
@@ -21,44 +22,46 @@ type Subprocess struct {
 }
 
 func NewSubprocess(params []string, useRel bool, maxTries int) *Subprocess {
-	subProc := Subprocess{}
+	subp := Subprocess{}
 	if (useRel) {
 		_, filename, _, _ := runtime.Caller(1)
 		params[0] = path.Dir(filename) + "/" + params[0]
 	}
-	subProc.params = params
-	subProc.Tries = 0
-	subProc.MaxTries = maxTries
-	subProc.RetryTime, _ = time.ParseDuration("30s")
-	return &subProc
+	subp.params = params
+	subp.PrintableParams = params
+	subp.Tries = 0
+	subp.MaxTries = maxTries
+	subp.RetryTime, _ = time.ParseDuration("30s")
+	return &subp
 }
 
-func (subProc *Subprocess) Run() {
+func (subp *Subprocess) Run() {
 	var err error
 	first := true
 	for {
-		if (subProc.Tries >= subProc.MaxTries) {
+		if (subp.Tries >= subp.MaxTries) {
 			break
 		}
 		if (!first) {
-			time.Sleep(subProc.RetryTime)
+			time.Sleep(subp.RetryTime)
 		}
-		subProc.Tries++;
+		subp.Tries++;
 		first = false
-		cmd := exec.Command(subProc.params[0])
-		cmd.Args = subProc.params
+		cmd := exec.Command(subp.params[0])
+		cmd.Args = subp.params
 		var out []byte
 		out, err = cmd.CombinedOutput()
-		subProc.CombinedOutput = string(out)
+		subp.CombinedOutput = string(out)
 		if err == nil {
+			fmt.Printf("SUCCESS: '%v': CombinedOutput: '%v'\n",
+				subp.PrintableParams, subp.CombinedOutput)
 			return
 		}
-		fmt.Printf("Subprocess %v failed: %s\n",
-			subProc.params, subProc.CombinedOutput)
+		fmt.Printf("FAILED: '%v': CombinedOutput: '%v', err:'%v'\n",
+			subp.PrintableParams, subp.CombinedOutput, err)
 	}
-	panic(errors.New(fmt.Sprintf("failed to run command %v after %d tries. " +
-			"CombinedOutput: '%v'",
-			subProc.params, subProc.Tries, subProc.CombinedOutput)))
+	panic(errors.New(fmt.Sprintf("failed to run command after %d tries.",
+			subp.Tries)))
 }
 
 type TimedSubprocess struct {
@@ -68,25 +71,25 @@ type TimedSubprocess struct {
 	Elapsed float64
 }
 
-func (subProc *TimedSubprocess) Run() {
+func (subp *TimedSubprocess) Run() {
 	timeDataRegex, err := regexp.Compile("TIME_DATA: user=([0-9.]*), " +
 		"system=([0-9.]*), elapsed=([0-9.]*), ")
 	if err != nil {
 		panic(err)
 	}
-	subProc.Subprocess.Run()
-	for _, line := range strings.Split(subProc.CombinedOutput, "\n") {
+	subp.Subprocess.Run()
+	for _, line := range strings.Split(subp.CombinedOutput, "\n") {
 		arr := timeDataRegex.FindStringSubmatch(line)
 		if arr != nil {
-			subProc.User, _ = strconv.ParseFloat(arr[1], 64)
-			subProc.System, _ = strconv.ParseFloat(arr[2], 64)
-			subProc.Elapsed, _ = strconv.ParseFloat(arr[3], 64)
+			subp.User, _ = strconv.ParseFloat(arr[1], 64)
+			subp.System, _ = strconv.ParseFloat(arr[2], 64)
+			subp.Elapsed, _ = strconv.ParseFloat(arr[3], 64)
 		}
 	}
 }
 
 func NewTimedSubprocess(params []string, useRel bool, maxTries int) *TimedSubprocess {
-	subProc := TimedSubprocess{}
+	subp := TimedSubprocess{}
 	timedParams := make([]string, len(params) + 3)
 	timedParams[0] = "/usr/bin/time"
 	timedParams[1] = "-f"
@@ -94,6 +97,7 @@ func NewTimedSubprocess(params []string, useRel bool, maxTries int) *TimedSubpro
 		"elapsed=%e, CPU=%P, (%Xtext+%Ddata %Mmax)k, " +
 		"inputs=%I, outputs=%O, (%Fmajor+%Rminor)pagefaults, swaps=%W "
 	copy(timedParams[3:], params)
-	subProc.Subprocess = NewSubprocess(timedParams, useRel, maxTries)
-	return &subProc
+	subp.Subprocess = NewSubprocess(timedParams, useRel, maxTries)
+	subp.Subprocess.PrintableParams = timedParams[3:]
+	return &subp
 }
