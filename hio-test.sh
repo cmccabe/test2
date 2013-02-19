@@ -12,5 +12,6 @@ export CLASSPATH="$CLASSPATH:./build/jar/HioBench.jar"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/home/cmccabe/h/lib/native"
 pushd ~/src/hio_test
 ant clean compile jar || die "ant failed"
-java "$@" com.cloudera.HioBench || die "java failed"
+TD='TIME_DATA: user=%U, system=%S, elapsed=%e, CPU=%P, (%Xtext+%Ddata %Mmax)k, inputs=%I, outputs=%O, (%Fmajor+%Rminor)pagefaults, swaps=%W'
+/usr/bin/time -f "$TD" java "$@" com.cloudera.HioBench || die "java failed"
 popd
