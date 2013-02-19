@@ -4,7 +4,7 @@ import "io/ioutil"
 import "fmt"
 import "os"
 
-const TEMP_SIZE = 8 // 858993459200
+const TEMP_SIZE = 85899345920 //858993459200
 
 func toMegabytesPerSecond(bytesPerSec float64) float64 {
 	return bytesPerSec / (1024 * 1024)
