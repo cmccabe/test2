@@ -2,3 +2,4 @@ dropCache
 setReadahead
 test2
 hdfsCat
+*.swp
