@@ -22,8 +22,8 @@ func main() {
 		"fs", "-copyFromLocal", tempFile.Name(), "/t"}, false, 30)
 	copyFromLocal.Run()
 	NewSubprocess([]string { "dropCache" }, true, 1).Run()
-	hdfsCat := NewTimedSubprocess([]string {"/home/cmccabe/h/bin/hadoop",
-		"fs", "-cat", "/t"}, false, 30)
+	hdfsCat := NewTimedSubprocess([]string {"bash", "-c",
+		"/home/cmccabe/h/bin/hadoop fs -cat /t >/dev/null"}, false, 30)
 	hdfsCat.Run()
 
 	var inputRate float64 = TEMP_SIZE
