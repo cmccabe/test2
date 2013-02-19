@@ -6,7 +6,6 @@ import "os"
 import "os/exec"
 import "path"
 import "path/filepath"
-import "runtime"
 import "strconv"
 import "strings"
 import "time"
@@ -108,20 +107,6 @@ var CONFIGS = []Config{
 	},
 }
 
-/////////////////// Execute local /////////////////// 
-func execLocal(params []string) {
-	_, filename, _, _ := runtime.Caller(1)
-	params[0] = path.Dir(filename) + "/" + params[0]
-	cmd := exec.Command(params[0])
-	cmd.Args = params
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Run()
-	if err != nil {
-		panic(err)
-	}
-}
-
 /////////////////// Configuration management functions /////////////////// 
 func checkoutConfig(branch string) {
 	// TODO: verify that we're not creating the branch here
@@ -162,38 +147,34 @@ func dfsStart() {
 	if (err != nil) {
 		start_dfs = "./bin/start-dfs.sh"
 	}
-	err = exec.Command(start_dfs).Run()
-	if err != nil {
-		panic(err)
-	}
+	NewSubprocess([]string { start_dfs }, false, 30).Run()
 }
 
 func formatHdfs() {
-	exec.Command("bash", "-c", "rm -rf /data/*/cmccabe/data*/*").Run()
-	exec.Command("bash", "-c", "rm -rf /data/*/cmccabe/name*/*").Run()
-	err := exec.Command("bash", "-c", "yes Y | " +
-		"/home/cmccabe/h/bin/hadoop namenode -format").Run()
-	if (err != nil) {
-		panic(err)
-	}
+	NewSubprocess([]string { "bash", "-c",
+		"rm -rf /data/*/cmccabe/data*/*" }, false, 1).Run()
+	NewSubprocess([]string { "bash", "-c",
+		"rm -rf /data/*/cmccabe/name*/*" }, false, 1).Run()
+	NewSubprocess([]string { "bash", "-c", "yes Y | " +
+		"/home/cmccabe/h/bin/hadoop namenode -format" }, false, 100).Run()
 }
 
 func waitForSafeModeOff() {
-	const MAX_RETRIES = 1000
-	for i := 0; i < MAX_RETRIES; i++ {
-		output, err := exec.Command("/home/cmccabe/h/bin/hadoop", "dfsadmin",
-			"-safemode", "get").CombinedOutput()
-		if (err != nil) {
-			panic(fmt.Sprintf("waitForSafeModeOff: error: %s.  OUTPUT: %s\n",
-				err, output))
-		}
-		outputStr := string(output)
-		if (strings.Contains(outputStr, "OFF")) {
+	err := os.Chdir(HADOOP_HOME_BASE)
+	if err != nil {
+		panic(err)
+	}
+	subProc := NewSubprocess([]string { "./bin/hadoop", "dfsadmin",
+			"-safemode", "get" }, false, 100)
+	for ;; {
+		subProc.Run()
+		if (strings.Contains(subProc.CombinedOutput, "OFF")) {
 			return
 		}
 		d, _ := time.ParseDuration("30s")
 		time.Sleep(d)
 	}
+	panic("safe mode didn't turn off!")
 }
 
 func (c *Config) startCluster() {
@@ -205,7 +186,8 @@ func (c *Config) startCluster() {
 	if err != nil {
 		panic(err)
 	}
-	execLocal([]string { "setReadahead", strconv.FormatInt(c.readahead, 10) })
+	NewSubprocess([]string { "setReadahead",
+		strconv.FormatInt(c.readahead, 10) }, true, 1)
 	checkoutConfig(c.confBranch)
 	fmt.Println("** starting cluster for " + c.toString() + "...")
 	if (c.shouldReformat) {
@@ -215,7 +197,7 @@ func (c *Config) startCluster() {
 	dfsStart()
 	waitForSafeModeOff()
 	fmt.Println("** cluster started for " + c.toString())
-	execLocal([]string { "dropCache" })
+	NewSubprocess([]string { "dopCache" }, true, 1)
 	fmt.Println("** page cache dropped.")
 }
 
