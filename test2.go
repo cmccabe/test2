@@ -268,12 +268,13 @@ func (n *Nonce) init(dir string) error {
 	} else {
 		baseDir = dir
 	}
-	var err error
-	n.directory, err = filepath.Abs(baseDir)
-	err = os.Mkdir("./" + baseDir, 0755)
-	if err != nil {
-		fmt.Println("** failed to create nonce directory " + baseDir)
-		return err
+	n.directory, _ = filepath.Abs("./" + baseDir)
+	if _, err := os.Stat(n.directory); err != nil {
+		err = os.Mkdir(n.directory, 0755)
+		if err != nil {
+			fmt.Println("** failed to create nonce directory " + baseDir)
+			return err
+		}
 	}
 	return nil
 }
