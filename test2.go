@@ -182,7 +182,7 @@ func waitForSafeModeOff() {
 	panic("safe mode didn't turn off!")
 }
 
-func (c *Config) startCluster() {
+func (c *Config) startCluster(clusterSetup string) {
 	fmt.Println("** shutting down Java...")
 	shutdownJava()
 	fmt.Println("** re-arranging symlinks, checking out code, setting readahead...")
@@ -195,7 +195,7 @@ func (c *Config) startCluster() {
 		strconv.FormatInt(c.readahead, 10) }, true, 1)
 	checkoutConfig(c.confBranch)
 	fmt.Println("** starting cluster for " + c.toString() + "...")
-	if (c.shouldReformat) {
+	if (c.shouldReformat || clusterSetup == "always") {
 		fmt.Println("** reformatting...")
 		formatHdfs()
 	}
@@ -251,7 +251,7 @@ func (testRun *TestRun) run(args []string) error {
 /////////////////// Main /////////////////// 
 var ignoreFailure = flag.Bool("ignoreFailure", false, "whether to ignore the failure of tests and keep going")
 
-var skipClusterSetup = flag.Bool("skipClusterSetup", false, "whether to skip cluster setup (useful only for trivial testing)")
+var clusterSetup = flag.String("clusterSetup", "sometimes", "when to perform cluster setup (sometimes, always, never).")
 
 var nonceDir = flag.String("nonce", "RANDOM", "the directory to put test outputs into.")
 
@@ -314,8 +314,8 @@ func main() {
 	for i := getStartConfigIdx(*startConfig); i < len(CONFIGS); i++ {
 		var testRun TestRun
 		testRun.init(&CONFIGS[i], &nonce)
-		if (!*skipClusterSetup) {
-			testRun.startCluster()
+		if (*clusterSetup != "never") {
+			testRun.startCluster(*clusterSetup)
 		}
 		fmt.Println("** running test " + args[0] + "...")
 		err = testRun.run(args)
