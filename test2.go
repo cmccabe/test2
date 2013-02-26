@@ -278,10 +278,8 @@ func (testRun *TestRun) init(c *Config, n *Nonce) error {
 }
 
 func (testRun *TestRun) run(args []string) error {
-	curArgs := append(args, testRun.toString())
-	curArgs = append(curArgs, testRun.directory)
-	cmd := exec.Command(curArgs[0])
-	cmd.Args = curArgs
+	cmd := exec.Command(args[0])
+	cmd.Args = args
 	stdoutFile, err := os.Create(testRun.directory + "/stdout"); if err != nil {
 		panic(err)
 	}
