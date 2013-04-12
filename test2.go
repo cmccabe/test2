@@ -76,19 +76,19 @@ var CONFIGS = []Config{
 		confBranch:"F_c_L_1mRA",
 	},
 	Config{
-		shouldReformat:false,
+		shouldReformat:true,
 		hadoop:"/home/cmccabe/cdh4",
 		readahead:1048576,
 		confBranch:"F_C_L_1mRA",
 	},
 	Config{
-		shouldReformat:false,
+		shouldReformat:true,
 		hadoop:"/home/cmccabe/cdh4",
 		readahead:8388608,
 		confBranch:"F_c_L_8mRA",
 	},
 	Config{
-		shouldReformat:false,
+		shouldReformat:true,
 		hadoop:"/home/cmccabe/cdh4",
 		readahead:8388608,
 		confBranch:"F_C_L_8mRA",
@@ -100,7 +100,7 @@ var CONFIGS = []Config{
 		confBranch:"F_c_L_1mRA",
 	},
 	Config{
-		shouldReformat:false,
+		shouldReformat:true,
 		hadoop:"/home/cmccabe/cdh3",
 		readahead:8388608,
 		confBranch:"F_c_L_8mRA",
@@ -202,11 +202,51 @@ func dfsStart() {
 	startDfs.Run()
 }
 
+func getDirectories(confKey string) ([]string, error) {
+	cmd := exec.Command(HADOOP_HOME_BASE + "/bin/hdfs")
+	cmd.Args = []string { HADOOP_HOME_BASE + "/bin/hdfs", "getconf",
+		"-confKey", confKey }
+	bytes, err := cmd.Output()
+	if (err != nil) {
+		return nil, err
+	}
+	out := string(bytes)
+	// Strip off everything but the last line (i.e. everything before the last
+	// newline).  This is to get rid of log4j spew.
+	// Technically directory names could contain newlines.  But we refuse to
+	// think about that.
+	out = strings.TrimRight(out, "\n")
+	lastNewline := strings.LastIndex(out, "\n")
+	if (lastNewline > -1) {
+		out = out[lastNewline+1:]
+	}
+	dirs := strings.Split(out, ",")
+	return dirs, nil
+}
+
+func cleanDirectories(dirs []string) {
+	for i := 0; i < len(dirs); i++ {
+		fmt.Printf("removing directory %s\n", dirs[i])
+		err := os.RemoveAll(dirs[i])
+		if (err != nil) {
+			fmt.Printf("error removing %s: %v\n", dirs[i], err)
+		}
+	}
+}
+
 func formatHdfs() {
-	NewSubprocess([]string { "bash", "-c",
-		"rm -rf /data/*/cmccabe/data*/*" }, false, 1).Run()
-	NewSubprocess([]string { "bash", "-c",
-		"rm -rf /data/*/cmccabe/name*/*" }, false, 1).Run()
+	dirs, err := getDirectories("dfs.name.dir")
+	if (err != nil) {
+		fmt.Printf("error getting dfs.name.dir directories: %v\n", err)
+	} else {
+		cleanDirectories(dirs)
+	}
+	dirs, err = getDirectories("dfs.data.dir")
+	if (err != nil) {
+		fmt.Printf("error getting dfs.data.dir directories: %v\n", err)
+	} else {
+		cleanDirectories(dirs)
+	}
 	fmt := NewSubprocess([]string { "bash", "-c", "yes Y | " +
 		"/home/cmccabe/h/bin/hadoop namenode -format" }, false, 100)
 	fmt.PrintOutputOnSuccess = false
