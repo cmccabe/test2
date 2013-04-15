@@ -203,14 +203,21 @@ func dfsStart() {
 }
 
 func getDirectories(confKey string) ([]string, error) {
-	cmd := exec.Command(HADOOP_HOME_BASE + "/bin/hdfs")
-	cmd.Args = []string { HADOOP_HOME_BASE + "/bin/hdfs", "getconf",
-		"-confKey", confKey }
-	bytes, err := cmd.Output()
-	if (err != nil) {
-		return nil, err
+	envName := "OVERRIDE_" + strings.Replace(confKey, ".", "_", -1)
+	out := os.Getenv(envName)
+	if (len(out) == 0) {
+		fmt.Printf(envName + " not found.  checking getconf.\n")
+		cmd := exec.Command(HADOOP_HOME_BASE + "/bin/hdfs")
+		cmd.Args = []string { HADOOP_HOME_BASE + "/bin/hdfs", "getconf",
+			"-confKey", confKey }
+		bytes, err := cmd.Output()
+		if (err != nil) {
+			return nil, err
+		}
+		out = string(bytes)
+	} else {
+		fmt.Printf(envName + " found as " + out + "\n")
 	}
-	out := string(bytes)
 	// Strip off everything but the last line (i.e. everything before the last
 	// newline).  This is to get rid of log4j spew.
 	// Technically directory names could contain newlines.  But we refuse to
@@ -238,6 +245,7 @@ func formatHdfs() {
 	dirs, err := getDirectories("dfs.name.dir")
 	if (err != nil) {
 		fmt.Printf("error getting dfs.name.dir directories: %v\n", err)
+
 	} else {
 		cleanDirectories(dirs)
 	}
